@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AttendIQ – Cloud Sync</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--bg:#0f0f13;--card:#1a1a24;--card2:#22222e;--border:#2e2e3e;--accent:#7c6ef5;--accent2:#5b4fd4;--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--text:#e8e8f0;--sub:#8888a0;--premium:#f59e0b}
+body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;min-height:100vh;padding-bottom:60px}
+#config-warn{display:none;background:#1a0a0a;border-bottom:2px solid var(--red);padding:12px 16px;font-size:.82rem;color:#f87171;text-align:center;line-height:1.7}
+#auth-gate{position:fixed;inset:0;background:var(--bg);z-index:500;display:flex;align-items:center;justify-content:center;padding:24px}
+.auth-card{background:var(--card);border:1px solid var(--border);border-radius:24px;padding:32px 24px;max-width:360px;width:100%;text-align:center}
+.auth-logo{font-size:2rem;font-weight:800;background:linear-gradient(135deg,var(--accent),#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:4px}
+.auth-logo span{-webkit-text-fill-color:var(--premium)}
+.btn-google{width:100%;padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--card2);color:var(--text);font-size:.93rem;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;transition:all .2s;margin-bottom:10px}
+.btn-google:hover{border-color:var(--accent);transform:translateY(-1px)}
+.btn-google:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.auth-note{font-size:.71rem;color:var(--sub);line-height:1.55}
+#sync-bar{background:var(--card2);border-bottom:1px solid var(--border);padding:7px 16px;display:none;align-items:center;justify-content:space-between;gap:10px}
+.sync-user{display:flex;align-items:center;gap:8px}
+.sync-avatar{width:24px;height:24px;border-radius:50%;border:1px solid var(--border);object-fit:cover}
+.sync-name{font-size:.78rem;color:var(--sub);font-weight:500;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sync-right{display:flex;align-items:center;gap:10px}
+.sync-pill{display:flex;align-items:center;gap:5px;font-size:.72rem;color:var(--sub);background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:3px 10px}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.sync-dot.syncing{background:var(--yellow);animation:blink .7s infinite alternate}
+.sync-dot.error{background:var(--red)}
+@keyframes blink{to{opacity:.3}}
+.btn-out{background:transparent;border:1px solid var(--border);color:var(--sub);border-radius:8px;padding:3px 10px;font-size:.71rem;cursor:pointer;transition:all .2s}
+.btn-out:hover{border-color:var(--red);color:var(--red)}
+header{background:linear-gradient(135deg,#1a1a30,#0f0f13);border-bottom:1px solid var(--border);padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;backdrop-filter:blur(10px)}
+.logo{font-size:1.3rem;font-weight:800;background:linear-gradient(135deg,var(--accent),#a78bfa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo span{-webkit-text-fill-color:var(--premium)}
+.tabs{display:flex;gap:5px;background:var(--card2);border-radius:12px;padding:4px;border:1px solid var(--border)}
+.tab-btn{padding:7px 15px;border:none;border-radius:9px;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .2s;background:transparent;color:var(--sub)}
+.tab-btn.active{background:var(--accent);color:#fff}
+.container{max-width:480px;margin:0 auto;padding:0 16px}
+.page{display:none;padding-top:22px}.page.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;padding:20px;margin-bottom:14px}
+.card-title{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--sub);margin-bottom:16px}
+.ig{margin-bottom:13px}
+label{display:block;font-size:.82rem;color:var(--sub);margin-bottom:6px;font-weight:500}
+input[type=number],input[type=text]{width:100%;background:var(--card2);border:1px solid var(--border);border-radius:10px;padding:11px 14px;color:var(--text);font-size:1rem;transition:border-color .2s;outline:none}
+input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(124,110,245,.15)}
+input::placeholder{color:var(--sub)}
+.btn{width:100%;padding:13px;border:none;border-radius:12px;font-size:.93rem;font-weight:700;cursor:pointer;transition:all .2s;display:block;text-align:center}
+.btn:hover{transform:translateY(-1px);filter:brightness(1.08)}
+.btn-premium{background:linear-gradient(135deg,#f59e0b,#d97706);color:#000}
+.btn-green{background:linear-gradient(135deg,#22c55e,#16a34a);color:#fff}
+.btn-outline{background:transparent;border:1px solid var(--border);color:var(--sub);border-radius:12px;padding:11px;width:100%;font-size:.84rem;cursor:pointer;margin-top:8px;transition:all .2s}
+.btn-outline:hover{border-color:var(--sub);color:var(--text)}
+.gw{display:flex;flex-direction:column;align-items:center;padding:8px 0 4px}
+.gs{width:158px;height:158px}
+.g-track{fill:none;stroke:var(--card2);stroke-width:12}
+.g-fill{fill:none;stroke-width:12;stroke-linecap:round;transition:stroke-dashoffset .7s,stroke .3s}
+.g-pct{font-size:1.95rem;font-weight:800;fill:var(--text);text-anchor:middle;dominant-baseline:central}
+.g-lbl{font-size:.68rem;fill:var(--sub);text-anchor:middle;dominant-baseline:central}
+.rg{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-top:14px}
+.rb{background:var(--card2);border-radius:12px;padding:13px;text-align:center;border:1px solid var(--border);position:relative;overflow:hidden}
+.rb .val{font-size:1.35rem;font-weight:800;margin-bottom:2px}
+.rb .lbl{font-size:.7rem;color:var(--sub);font-weight:500}
+.bunk-lock{position:absolute;inset:0;background:rgba(8,8,14,.92);border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;cursor:pointer;z-index:5}
+.bunk-lock:hover{background:rgba(8,8,14,.75)}
+.bl-icon{font-size:1.4rem}
+.bl-text{font-size:.6rem;color:var(--premium);font-weight:700;background:rgba(245,158,11,.15);padding:3px 9px;border-radius:6px;border:1px solid rgba(245,158,11,.3);text-align:center;line-height:1.4}
+.alert{border-radius:12px;padding:12px 15px;font-size:.83rem;font-weight:600;margin-top:12px;display:flex;align-items:flex-start;gap:9px;border:1px solid;line-height:1.5}
+.a-green{background:rgba(34,197,94,.1);border-color:rgba(34,197,94,.3);color:var(--green)}
+.a-red{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.3);color:var(--red)}
+.a-yellow{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.3);color:var(--yellow)}
+.pb{background:linear-gradient(135deg,#1f1a10,#2a1f05);border:1px solid rgba(245,158,11,.4);border-radius:18px;padding:22px;margin-bottom:14px;text-align:center}
+.pfl{list-style:none;margin:10px 0 16px;text-align:left}
+.pfl li{font-size:.82rem;color:var(--sub);padding:5px 0;display:flex;gap:8px;align-items:flex-start}
+.pfl li::before{content:'✦';color:var(--premium);font-size:.58rem;margin-top:3px;flex-shrink:0}
+.price-row{display:flex;gap:9px;justify-content:center;margin-bottom:16px;flex-wrap:wrap}
+.p-chip{background:rgba(245,158,11,.15);border:1px solid rgba(245,158,11,.4);border-radius:30px;padding:5px 16px;font-size:.83rem;font-weight:700;color:var(--premium)}
+.blur-card{position:relative;border-radius:18px;overflow:hidden;margin-bottom:14px}
+.blur-overlay{position:absolute;inset:0;background:rgba(15,15,19,.65);backdrop-filter:blur(5px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;z-index:2;border-radius:18px}
+.blur-label{font-size:.79rem;color:var(--premium);font-weight:700;background:rgba(245,158,11,.15);padding:5px 15px;border-radius:20px;border:1px solid rgba(245,158,11,.3)}
+.prev-table{width:100%;border-collapse:collapse}
+.prev-table th,.prev-table td{padding:9px 11px;text-align:left;font-size:.81rem;border-bottom:1px solid var(--border)}
+.prev-table th{color:var(--sub);font-weight:600;font-size:.73rem;text-transform:uppercase}
+.pill{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.76rem;font-weight:700}
+.pg{background:rgba(34,197,94,.15);color:var(--green)}.pr{background:rgba(239,68,68,.15);color:var(--red)}.py{background:rgba(245,158,11,.15);color:var(--yellow)}
+.hint-ban{background:linear-gradient(135deg,#0d1a0d,#091509);border:1px solid rgba(34,197,94,.35);border-radius:13px;padding:12px 15px;margin-bottom:12px;display:none;align-items:center;gap:11px}
+.sc{background:linear-gradient(135deg,#0d1f12,#0a1a0e);border:1px solid rgba(37,211,102,.3);border-radius:18px;padding:18px;margin-bottom:14px;text-align:center}
+.wa{background:linear-gradient(135deg,#25D366,#128C7E);color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;padding:12px 16px;border-radius:12px;font-size:.9rem;transition:all .2s}
+.wa:hover{transform:translateY(-1px)}
+.prem-active-sec{background:linear-gradient(135deg,#0d1a0d,#091509);border:1px solid rgba(34,197,94,.4);border-radius:18px;padding:16px;margin-bottom:14px;text-align:center}
+.overall{background:linear-gradient(135deg,#1a1a30,#13132a);border:1px solid rgba(124,110,245,.3);border-radius:18px;padding:18px;margin-bottom:14px}
+.ov-pct{font-size:2.6rem;font-weight:800;text-align:center;margin:6px 0 2px}
+.ov-sub{font-size:.78rem;color:var(--sub);text-align:center;margin-bottom:14px}
+.ov-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ov-box{background:var(--card2);border-radius:11px;padding:11px;text-align:center;border:1px solid var(--border)}
+.ov-box .v{font-size:1.1rem;font-weight:800;margin-bottom:2px}
+.ov-box .l{font-size:.66rem;color:var(--sub)}
+.add-row{display:flex;gap:9px;margin-bottom:14px}
+.add-row input{flex:1}
+.add-btn{white-space:nowrap;padding:11px 18px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.85rem;font-weight:700;cursor:pointer;transition:all .2s}
+.add-btn:hover{background:var(--accent2);transform:translateY(-1px)}
+.sj{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:10px;position:relative}
+.sj-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sj-name{font-size:.97rem;font-weight:700;color:var(--text)}
+.sj-badge{padding:4px 12px;border-radius:20px;font-size:.8rem;font-weight:800}
+.sj-inputs{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px}
+.sj-inputs label{font-size:.74rem;margin-bottom:5px}
+.sj-inputs input{padding:9px 12px;font-size:.9rem}
+.sj-inputs input.typing{border-color:var(--yellow)!important;box-shadow:0 0 0 2px rgba(245,158,11,.15)!important}
+.sj-inputs input.saved{border-color:var(--green)!important;box-shadow:0 0 0 2px rgba(34,197,94,.15)!important}
+.upd-btn{width:100%;padding:9px;background:rgba(124,110,245,.15);border:1px solid rgba(124,110,245,.3);border-radius:9px;color:var(--accent);font-size:.8rem;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all .2s;display:none}
+.upd-btn.show{display:block}
+.upd-btn:hover{background:rgba(124,110,245,.3)}
+.sj-bar{width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden;margin-top:4px}
+.sj-bar-fill{height:100%;border-radius:3px;transition:width .6s}
+.sj-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+.sjs{background:var(--bg);border-radius:9px;padding:9px 6px;text-align:center;border:1px solid var(--border)}
+.sjs .sv{font-size:1rem;font-weight:800;margin-bottom:2px}
+.sjs .sl{font-size:.63rem;color:var(--sub)}
+.del-btn{position:absolute;top:12px;right:12px;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.25);color:var(--red);border-radius:8px;padding:4px 10px;font-size:.71rem;cursor:pointer;font-weight:600}
+.del-btn:hover{background:rgba(239,68,68,.28)}
+.no-sj{text-align:center;padding:24px 10px;font-size:.82rem;color:var(--sub);line-height:1.7;display:none}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(90px);background:var(--green);color:#000;font-size:.82rem;font-weight:700;padding:10px 22px;border-radius:30px;z-index:999;transition:transform .3s;pointer-events:none;white-space:nowrap}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.mo{display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);backdrop-filter:blur(8px);z-index:200;align-items:flex-end;justify-content:center}
+.mo.show{display:flex}
+.md{background:var(--card);border:1px solid var(--border);border-radius:24px 24px 0 0;padding:22px 20px 40px;width:100%;max-width:480px;animation:slideUp .3s ease;max-height:94vh;overflow-y:auto}
+@keyframes slideUp{from{transform:translateY(60px);opacity:0}to{transform:translateY(0);opacity:1}}
+.mh{width:36px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 18px}
+.mt2{font-size:1.1rem;font-weight:800;color:var(--premium);text-align:center;margin-bottom:4px}
+.msub{font-size:.81rem;color:var(--sub);text-align:center;margin-bottom:20px}
+.dots{display:flex;align-items:center;justify-content:center;gap:7px;margin-bottom:20px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:all .3s}
+.dot.active{background:var(--premium);width:22px;border-radius:4px}
+.dot.done{background:var(--green)}
+.mstep{display:none}.mstep.active{display:block}
+.plan-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.pcard{background:var(--card2);border:2px solid var(--border);border-radius:14px;padding:16px;text-align:center;cursor:pointer;transition:all .2s}
+.pcard.sel,.pcard:hover{border-color:var(--premium);background:rgba(245,158,11,.08)}
+.pc-name{font-size:.76rem;color:var(--sub);font-weight:600;margin-bottom:5px}
+.pc-price{font-size:1.45rem;font-weight:800;color:var(--text)}
+.pc-per{font-size:.7rem;color:var(--sub)}
+.pc-save{font-size:.7rem;color:var(--green);font-weight:700;margin-top:3px}
+.promo-sec{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:15px;margin-bottom:16px}
+.promo-row{display:flex;gap:9px}
+.promo-row input{flex:1;padding:10px 13px;text-transform:uppercase;letter-spacing:1px}
+.promo-btn{white-space:nowrap;padding:10px 16px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:.82rem;font-weight:700;cursor:pointer}
+.promo-btn:hover{background:var(--accent2)}
+.pmsg{margin-top:9px;font-size:.8rem;font-weight:600;display:none;align-items:center;gap:6px}
+.p-ok{color:var(--green)}.p-err{color:var(--red)}
+.qr-box{background:var(--card2);border:1px solid var(--border);border-radius:18px;padding:24px 20px 18px;text-align:center;margin-bottom:16px}
+.qr-lbl{font-size:.74rem;color:var(--sub);font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:14px}
+#qrcode{display:flex;justify-content:center;margin-bottom:14px}
+#qrcode canvas,#qrcode img{border-radius:10px;border:4px solid #fff;box-shadow:0 4px 24px rgba(0,0,0,.35)}
+.qr-amt{display:inline-block;background:linear-gradient(135deg,rgba(245,158,11,.2),rgba(245,158,11,.1));border:1px solid rgba(245,158,11,.4);color:var(--premium);padding:7px 24px;border-radius:20px;font-size:1.1rem;font-weight:800;margin-bottom:14px}
+.upi-row{background:var(--bg);border:1px dashed rgba(124,110,245,.3);border-radius:10px;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.upi-id{font-size:.84rem;color:var(--text);font-weight:600}
+.copy-btn{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:6px 14px;font-size:.74rem;font-weight:700;cursor:pointer;white-space:nowrap}
+.qr-hint{font-size:.73rem;color:var(--sub);line-height:1.5;margin-top:6px}
+.vbox{background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:16px}
+.vbox p{font-size:.8rem;color:var(--sub);margin-bottom:12px;line-height:1.55}
+.sbox{text-align:center;padding:10px 0}
+.s-icon{font-size:3.8rem;margin-bottom:10px}
+.s-title{font-size:1.25rem;font-weight:800;color:var(--green);margin-bottom:5px}
+.s-sub{font-size:.82rem;color:var(--sub);margin-bottom:20px;line-height:1.5}
+.mem-badge{display:inline-block;background:linear-gradient(135deg,#f59e0b,#d97706);color:#000;padding:7px 24px;border-radius:20px;font-size:.86rem;font-weight:800;margin-bottom:20px}
+@media(max-width:360px){.plan-grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div id="config-warn">
+  ⚠️ <strong>Firebase config missing!</strong> — Is file mein upar <code>firebaseConfig</code> mein apni values paste karo.<br>
+  Setup guide ke liye file ke bilkul neeche dekho. 👇
+</div>
+
+<!-- AUTH GATE -->
+<div id="auth-gate">
+  <div class="auth-card">
+    <div class="auth-logo">Attend<span>IQ</span></div>
+    <div style="font-size:2.2rem;margin:16px 0 10px">🎓</div>
+    <div style="font-size:1.05rem;font-weight:700;margin-bottom:8px">Sign in to sync your data</div>
+    <div style="font-size:.81rem;color:var(--sub);margin-bottom:24px;line-height:1.55">
+      Attendance cloud mein save hogi aur<br>har device pe sync hogi automatically.
+    </div>
+    <button class="btn-google" id="google-btn" onclick="googleSignIn()">
+      <svg width="20" height="20" viewBox="0 0 48 48">
+        <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+        <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+        <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+        <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+      </svg>
+      Continue with Google
+    </button>
+    <div class="auth-note">🔒 Sirf Google ID use hoti hai. Koi password store nahi hota.</div>
+  </div>
+</div>
+
+<!-- SYNC BAR -->
+<div id="sync-bar">
+  <div class="sync-user">
+    <img id="sync-avatar" class="sync-avatar" src="" alt="">
+    <span class="sync-name" id="sync-name">…</span>
+  </div>
+  <div class="sync-right">
+    <div class="sync-pill">
+      <div class="sync-dot" id="sync-dot"></div>
+      <span id="sync-text">Synced</span>
+    </div>
+    <button class="btn-out" onclick="doSignOut()">Sign Out</button>
+  </div>
+</div>
+
+<div class="toast" id="toast">☁️ Synced</div>
+
+<header>
+  <div class="logo">Attend<span>IQ</span></div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('free')">Free</button>
+    <button class="tab-btn" onclick="switchTab('premium')">⭐ Premium</button>
+  </div>
+</header>
+
+<div class="container">
+<div id="pg-free" class="page active">
+  <div class="card">
+    <div class="card-title">📊 Attendance Calculator</div>
+    <div class="ig"><label>Total Classes Held</label><input type="number" id="inp-total" placeholder="e.g. 60" min="0" oninput="calc()"></div>
+    <div class="ig"><label>Classes Attended</label><input type="number" id="inp-att" placeholder="e.g. 48" min="0" oninput="calc()"></div>
+  </div>
+  <div class="card" id="res-card" style="display:none">
+    <div class="card-title">📈 Your Result</div>
+    <div class="gw">
+      <svg class="gs" viewBox="0 0 160 160">
+        <circle class="g-track" cx="80" cy="80" r="60"/>
+        <circle class="g-fill" id="g-fill" cx="80" cy="80" r="60" stroke-dasharray="376.99" stroke-dashoffset="376.99" transform="rotate(-90 80 80)" stroke="#7c6ef5"/>
+        <text class="g-pct" id="g-pct" x="80" y="76">0%</text>
+        <text class="g-lbl" x="80" y="97">attendance</text>
+      </svg>
+    </div>
+    <div class="rg">
+      <div class="rb"><div class="val" id="s-pct" style="color:var(--accent)">—</div><div class="lbl">Current %</div></div>
+      <div class="rb"><div class="val" id="s-need" style="color:var(--yellow)">—</div><div class="lbl">Classes to 75%</div></div>
+      <div class="rb">
+        <div class="val" id="s-bunk" style="color:var(--green)">—</div><div class="lbl">Can Bunk</div>
+        <div class="bunk-lock" id="bunk-lock" onclick="openModal()"><div class="bl-icon">🔒</div><div class="bl-text">Premium<br>Only</div></div>
+      </div>
+      <div class="rb"><div class="val" id="s-cnt" style="color:var(--sub)">—</div><div class="lbl">Total / Attended</div></div>
+    </div>
+    <div class="hint-ban" id="hint"><div style="font-size:1.4rem">🎁</div><div style="font-size:.78rem;color:var(--sub);line-height:1.4">Have a promo code? Get <strong style="color:var(--green)">Premium FREE!</strong></div></div>
+    <div id="res-alert" class="alert" style="display:none"></div>
+  </div>
+  <div class="sc">
+    <div style="font-size:.93rem;font-weight:700;color:#25D366;margin-bottom:5px">💬 Need Help?</div>
+    <div style="font-size:.79rem;color:var(--sub);margin-bottom:13px">Contact on WhatsApp for any queries</div>
+    <a href="https://wa.me/919350771566" target="_blank" class="wa">📱 Chat on WhatsApp</a>
+  </div>
+</div>
+
+<div id="pg-premium" class="page">
+  <div id="prem-active" style="display:none">
+    <div class="prem-active-sec">
+      <div style="font-size:1.8rem;margin-bottom:6px">🎉</div>
+      <div style="font-size:1rem;font-weight:800;color:var(--green);margin-bottom:2px">Premium Active!</div>
+      <div style="font-size:.79rem;color:var(--sub)">All features unlocked · ☁️ Cloud synced</div>
+    </div>
+    <div class="overall">
+      <div class="card-title" style="margin-bottom:10px">📊 Overall Attendance</div>
+      <div class="ov-pct" id="ov-pct" style="color:var(--accent)">—</div>
+      <div class="ov-sub">across all subjects</div>
+      <div class="ov-grid">
+        <div class="ov-box"><div class="v" id="ov-safe" style="color:var(--green)">0</div><div class="l">✅ Safe</div></div>
+        <div class="ov-box"><div class="v" id="ov-risk" style="color:var(--yellow)">0</div><div class="l">⚠️ At Risk</div></div>
+        <div class="ov-box"><div class="v" id="ov-crit" style="color:var(--red)">0</div><div class="l">🚨 Critical</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between">
+        <span>📚 Subject-wise Attendance</span>
+        <span id="save-ind" style="font-size:.68rem;color:var(--green);text-transform:none;letter-spacing:0;font-weight:500">☁️ Synced</span>
+      </div>
+      <div class="add-row"><input type="text" id="new-sj" placeholder="Add new subject..."><button class="add-btn" onclick="addSubject()">＋ Add</button></div>
+      <div id="sj-list"></div>
+      <div class="no-sj" id="no-sj">No subjects yet. Add one above! 👆</div>
+    </div>
+  </div>
+
+  <div id="prem-locked">
+    <div class="pb">
+      <div style="font-size:2rem;margin-bottom:8px">👑</div>
+      <div style="font-size:1.07rem;font-weight:800;color:var(--premium);margin-bottom:6px">Unlock Premium</div>
+      <div style="font-size:.81rem;color:var(--sub);margin-bottom:14px;line-height:1.5">Subject-wise tracking &amp; <strong style="color:var(--premium)">exact bunk limit</strong></div>
+      <div class="price-row"><div class="p-chip">₹39/month</div><div class="p-chip">₹99/semester</div></div>
+      <ul class="pfl">
+        <li><strong style="color:var(--text)">Bunk limit unlocked</strong></li>
+        <li><strong style="color:var(--text)">Subject-wise tracker</strong> — Maths, English, Python, BOC, BEEE</li>
+        <li>☁️ Synced across all devices &amp; browsers</li>
+        <li>Data never lost — stored in cloud</li>
+      </ul>
+      <button class="btn btn-premium" onclick="openModal()">Upgrade Now →</button>
+    </div>
+    <div class="blur-card">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-title">📚 Subject-wise Attendance</div>
+        <table class="prev-table">
+          <thead><tr><th>Subject</th><th>Attended</th><th>%</th></tr></thead>
+          <tbody>
+            <tr><td>Mathematics</td><td>42/48</td><td><span class="pill pg">87.5%</span></td></tr>
+            <tr><td>English</td><td>28/36</td><td><span class="pill py">77.8%</span></td></tr>
+            <tr><td>Python</td><td>30/44</td><td><span class="pill pr">68.2%</span></td></tr>
+            <tr><td>BOC</td><td>35/46</td><td><span class="pill py">76.1%</span></td></tr>
+            <tr><td>BEEE</td><td>50/52</td><td><span class="pill pg">96.2%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="blur-overlay"><div style="font-size:2rem">🔒</div><div class="blur-label">Premium Feature</div></div>
+    </div>
+  </div>
+
+  <div class="sc">
+    <div style="font-size:.93rem;font-weight:700;color:#25D366;margin-bottom:5px">💬 Help &amp; Support</div>
+    <div style="font-size:.79rem;color:var(--sub);margin-bottom:13px">Payment issue? WhatsApp karo!</div>
+    <a href="https://wa.me/919350771566" target="_blank" class="wa">📱 WhatsApp — 9350771566</a>
+  </div>
+</div>
+</div>
+
+<!-- MODAL -->
+<div class="mo" id="modal" onclick="bgClick(event)">
+  <div class="md">
+    <div class="mh"></div>
+    <div class="dots" id="dots"><div class="dot active" id="d1"></div><div class="dot" id="d2"></div><div class="dot" id="d3"></div></div>
+    <div class="mstep active" id="ms1">
+      <div class="mt2">👑 Choose Your Plan</div><div class="msub">Unlock bunk limit + subject tracker</div>
+      <div class="plan-grid">
+        <div class="pcard" id="p-mo" onclick="selPlan('monthly',39)"><div class="pc-name">Monthly</div><div class="pc-price">₹39</div><div class="pc-per">/month</div></div>
+        <div class="pcard sel" id="p-se" onclick="selPlan('semester',99)"><div class="pc-name">Semester</div><div class="pc-price">₹99</div><div class="pc-per">/6 months</div><div class="pc-save">💚 Save 58%</div></div>
+      </div>
+      <div class="promo-sec">
+        <div style="font-size:.78rem;color:var(--sub);font-weight:700;margin-bottom:10px">🎁 Promo / Referral Code</div>
+        <div class="promo-row"><input type="text" id="promo-inp" placeholder="Enter code…"><button class="promo-btn" onclick="applyPromo()">Apply</button></div>
+        <div class="pmsg p-ok" id="p-ok">✅ Code applied! Premium FREE 🎉</div>
+        <div class="pmsg p-err" id="p-err">❌ Invalid code.</div>
+      </div>
+      <button class="btn btn-premium" id="btn-pay" onclick="goStep(2)">Continue to Payment →</button>
+      <button class="btn btn-green" id="btn-free" style="display:none;margin-top:9px" onclick="freeActivate()">🎁 Activate Free Premium →</button>
+      <button class="btn-outline" onclick="closeModal()">Maybe Later</button>
+    </div>
+    <div class="mstep" id="ms2">
+      <div class="mt2">📱 Scan &amp; Pay</div><div class="msub" id="qr-sub">Scan QR to pay ₹99</div>
+      <div class="qr-box">
+        <div class="qr-lbl">UPI QR Code</div><div id="qrcode"></div>
+        <div><span class="qr-amt" id="qr-amt">₹99</span></div>
+        <div style="font-size:.8rem;color:var(--sub);margin:10px 0 14px;line-height:1.6">Open <strong style="color:var(--text)">GPay / PhonePe / Paytm</strong><br>→ Scan → Pay</div>
+        <div class="upi-row">
+          <div><div style="font-size:.7rem;color:var(--sub);margin-bottom:2px">UPI ID</div><div class="upi-id">shagun9671791012@oksbi</div></div>
+          <button class="copy-btn" id="copy-btn" onclick="copyUPI()">Copy</button>
+        </div>
+        <div class="qr-hint">🔒 Secure UPI Payment</div>
+      </div>
+      <button class="btn btn-green" onclick="goStep(3)" style="margin-bottom:8px">✅ I've Paid — Verify Now</button>
+      <button class="btn-outline" onclick="goStep(1)">← Back</button>
+    </div>
+    <div class="mstep" id="ms3">
+      <div class="mt2">🔍 Verify Payment</div><div class="msub">UTR enter karo — Premium turant activate hoga</div>
+      <div class="vbox">
+        <p>📌 UPI app → Transaction history → <strong style="color:var(--text)">12-digit UTR copy karo</strong></p>
+        <div class="ig"><label>Transaction ID / UTR</label><input type="text" id="utr-inp" placeholder="e.g. 426831957284" maxlength="25"></div>
+        <div style="font-size:.76rem;color:var(--sub);line-height:1.5">Ya screenshot bhejo <a href="https://wa.me/919350771566" target="_blank" style="color:#25D366;font-weight:700">WhatsApp</a> pe.</div>
+      </div>
+      <button class="btn btn-premium" onclick="verifyPay()" style="margin-bottom:8px">Activate Premium 🚀</button>
+      <button class="btn-outline" onclick="goStep(2)">← Back</button>
+    </div>
+    <div class="mstep" id="ms4">
+      <div class="sbox">
+        <div class="s-icon">🎉</div>
+        <div class="s-title">Premium Activated!</div>
+        <div class="s-sub" id="s-msg">Welcome! Data ab cloud pe save hai — har device pe sync hoga.</div>
+        <div class="mem-badge">👑 PREMIUM MEMBER</div><br>
+        <button class="btn btn-green" onclick="closeModal();activatePremiumUI()">Start Using Premium →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     ALL FIREBASE LOGIC — single script, no module needed
+     (uses Firebase CDN compat version — works everywhere)
+══════════════════════════════════════════════════════ -->
+
+<!-- Firebase Compat SDKs (v9 compat = works without bundler/server) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<script>
+/* ══════════════════════════════════════════════════════
+   🔥 PASTE YOUR FIREBASE CONFIG HERE
+   (Project Settings → Your apps → Web app → Config)
+══════════════════════════════════════════════════════ */
+const firebaseConfig = {
+  apiKey:            "AIzaSyAjK7sWaKzn9LgNrtvEIGKAzIlOuPp_Rbs",
+  authDomain:        "attendx-7467b.firebaseapp.com",
+  databaseURL:       "https://attendx-7467b-default-rtdb.firebaseio.com/",
+  projectId:         "attendx-7467b",
+  storageBucket:     "attendx-7467b.firebasestorage.app",
+  messagingSenderId: "58921237984",
+  appId:             "1:58921237984:web:56b1b2b40ec7a213f27f85"
+};
+
+/* ── Init Firebase ── */
+let _app, _auth, _db;
+try {
+  _app  = firebase.initializeApp(firebaseConfig);
+  _auth = firebase.auth();
+  _db   = firebase.database();
+} catch(e) {
+  document.getElementById('config-warn').style.display = 'block';
+  console.error('Firebase init failed:', e.message);
+}
+
+/* Check if config is still placeholder */
+if (firebaseConfig.apiKey.includes('PASTE')) {
+  document.getElementById('config-warn').style.display = 'block';
+  document.getElementById('google-btn').disabled = true;
+  document.getElementById('google-btn').textContent = '⚠️ Firebase config missing';
+}
+
+/* ── Auth State ── */
+if (_auth) {
+  _auth.onAuthStateChanged(user => {
+    if (user) onUserSignedIn(user);
+    else onUserSignedOut();
+  });
+}
+
+/* ══════════════════════════════════════════
+   CONSTANTS & STATE
+══════════════════════════════════════════ */
+const UPI           = 'shagun9671791012@oksbi';
+const PROMO_CODE    = 'SHAGUN';
+const DEFAULT_SUBJS = ['Mathematics','English','Python','BOC','BEEE'];
+const DEBOUNCE_MS   = 800;
+
+let uid      = null;
+let isPrem   = false;
+let subjects = [];
+let planKey  = 'semester', planAmt = 99;
+let promoOk  = false, lastQRAmt = -1;
+let unsubFns = [];
+const dT     = {};   // debounce timers
+
+/* ══════════════════════════════════════════
+   AUTH
+══════════════════════════════════════════ */
+function googleSignIn() {
+  if (!_auth) { alert('Firebase config set nahi ki abhi. Pehle config paste karo!'); return; }
+  const provider = new firebase.auth.GoogleAuthProvider();
+  _auth.signInWithPopup(provider).catch(e => alert('Sign-in error: ' + e.message));
+}
+
+function doSignOut() {
+  if (!confirm('Sign out?')) return;
+  unsubFns.forEach(f => f()); unsubFns = [];
+  _auth.signOut();
+}
+
+function onUserSignedIn(user) {
+  uid = user.uid;
+  document.getElementById('auth-gate').style.display = 'none';
+  document.getElementById('sync-bar').style.display  = 'flex';
+  document.getElementById('sync-avatar').src         = user.photoURL || '';
+  document.getElementById('sync-name').textContent   = user.displayName || user.email;
+  startListeners();
+}
+
+function onUserSignedOut() {
+  uid = null;
+  document.getElementById('auth-gate').style.display = 'flex';
+  document.getElementById('sync-bar').style.display  = 'none';
+}
+
+/* ══════════════════════════════════════════
+   FIREBASE DB HELPERS
+══════════════════════════════════════════ */
+function uRef(path) { return _db.ref(`users/${uid}/${path}`); }
+
+function setSyncDot(state) {
+  const dot = document.getElementById('sync-dot');
+  const txt = document.getElementById('sync-text');
+  const ind = document.getElementById('save-ind');
+  if (!dot) return;
+  dot.className = 'sync-dot' + (state==='ok'?'':' '+(state==='syncing'?'syncing':'error'));
+  txt.textContent = state==='ok'?'Synced':state==='syncing'?'Syncing…':'Error';
+  if (ind) ind.textContent = state==='ok'?'☁️ Synced':state==='syncing'?'⏳ Saving…':'❌ Error';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(window._tt);
+  window._tt = setTimeout(() => t.classList.remove('show'), 2000);
+}
+
+function startListeners() {
+  setSyncDot('syncing');
+
+  /* Premium */
+  const premRef = uRef('premium');
+  const premHandler = premRef.on('value', snap => {
+    const d = snap.val();
+    if (d && d.active) { isPrem = true; activatePremiumUI(false); }
+    setSyncDot('ok');
+  }, () => setSyncDot('error'));
+  unsubFns.push(() => premRef.off('value', premHandler));
+
+  /* Subjects */
+  const subjRef = uRef('subjects');
+  const subjHandler = subjRef.on('value', snap => {
+    const d = snap.val();
+    if (d) {
+      subjects = Object.entries(d)
+        .sort((a,b) => (a[1].order||0) - (b[1].order||0))
+        .map(([k,v]) => ({ fbKey:k, name:v.name, total:v.total||0, attended:v.attended||0 }));
+    } else {
+      subjects = DEFAULT_SUBJS.map(n => ({ fbKey:'', name:n, total:0, attended:0 }));
+      writeAllSubjects();
+    }
+    if (isPrem) renderSubjects();
+    setSyncDot('ok');
+  }, () => setSyncDot('error'));
+  unsubFns.push(() => subjRef.off('value', subjHandler));
+}
+
+function writeAllSubjects() {
+  if (!uid || !_db) return;
+  setSyncDot('syncing');
+  const payload = {};
+  subjects.forEach((s,i) => {
+    const k = s.fbKey || ('s'+Date.now()+i);
+    s.fbKey = k;
+    payload[k] = { name:s.name, total:s.total, attended:s.attended, order:i };
+  });
+  uRef('subjects').set(payload)
+    .then(()=>{ setSyncDot('ok'); showToast('☁️ Cloud pe save ho gaya!'); })
+    .catch(()=>setSyncDot('error'));
+}
+
+function writeSubjectCounts(i) {
+  if (!uid || !_db) return;
+  const s = subjects[i];
+  if (!s.fbKey) { writeAllSubjects(); return; }
+  setSyncDot('syncing');
+  uRef('subjects/'+s.fbKey).update({ total:s.total, attended:s.attended })
+    .then(()=>{ setSyncDot('ok'); showToast('☁️ Synced'); })
+    .catch(()=>setSyncDot('error'));
+}
+
+function writePremium(type, txn, plan) {
+  if (!uid || !_db) return;
+  uRef('premium').set({ active:true, type, txn:txn||'', plan:plan||'', activatedOn:new Date().toISOString() });
+}
+
+/* ══════════════════════════════════════════
+   TABS
+══════════════════════════════════════════ */
+function switchTab(t) {
+  document.querySelectorAll('.tab-btn').forEach((b,i) =>
+    b.classList.toggle('active',(i===0&&t==='free')||(i===1&&t==='premium')));
+  document.getElementById('pg-free').classList.toggle('active',t==='free');
+  document.getElementById('pg-premium').classList.toggle('active',t==='premium');
+}
+
+/* ══════════════════════════════════════════
+   FREE CALCULATOR
+══════════════════════════════════════════ */
+function calc() {
+  const tot=parseFloat(document.getElementById('inp-total').value)||0;
+  const att=parseFloat(document.getElementById('inp-att').value)||0;
+  const card=document.getElementById('res-card');
+  if(tot<=0||att<0||att>tot){card.style.display='none';return;}
+  card.style.display='block';
+  const pct=att/tot*100,pR=pct.toFixed(1);
+  const col=pct>=75?'#22c55e':pct>=60?'#f59e0b':'#ef4444';
+  document.getElementById('g-fill').style.strokeDashoffset=376.99-(Math.min(pct,100)/100)*376.99;
+  document.getElementById('g-fill').style.stroke=col;
+  document.getElementById('g-pct').textContent=pR+'%';
+  document.getElementById('s-pct').textContent=pR+'%';document.getElementById('s-pct').style.color=col;
+  document.getElementById('s-cnt').textContent=att+'/'+tot;
+  if(pct<75){const n=Math.ceil((0.75*tot-att)/0.25);document.getElementById('s-need').textContent='+'+n;document.getElementById('s-need').style.color='var(--red)';}
+  else{document.getElementById('s-need').textContent='✓ Safe';document.getElementById('s-need').style.color='var(--green)';}
+  const bk=pct>=75?Math.max(0,Math.floor((att-0.75*tot)/0.75)):0;
+  document.getElementById('s-bunk').textContent=bk||'0';
+  document.getElementById('s-bunk').style.color=bk>0?'var(--green)':'var(--sub)';
+  document.getElementById('bunk-lock').style.display=isPrem?'none':'flex';
+  document.getElementById('hint').style.display=isPrem?'none':'flex';
+  const al=document.getElementById('res-alert');al.style.display='flex';
+  if(pct>=85){al.className='alert a-green';al.innerHTML=isPrem?`✅ Safe! Bunk kar sakte ho <strong>&nbsp;${bk}&nbsp;</strong> aur classes.`:'✅ Great attendance! <strong>Upgrade Premium</strong> to see exact bunk limit 🔒';}
+  else if(pct>=75){al.className='alert a-yellow';al.innerHTML=isPrem?`⚠️ Safe! Can bunk <strong>&nbsp;${bk}&nbsp;</strong> more.`:'⚠️ Above 75% — <strong>Upgrade</strong> for exact bunk count 🔒';}
+  else{const n=Math.ceil((0.75*tot-att)/0.25);al.className='alert a-red';al.innerHTML=pct>=60?`🚨 Below 75%! Attend <strong>&nbsp;${n}&nbsp;</strong> more.`:`💀 Danger! Need <strong>&nbsp;${n}&nbsp;</strong> more to reach 75%.`;}
+}
+
+/* ══════════════════════════════════════════
+   SUBJECT TRACKER
+══════════════════════════════════════════ */
+function addSubject() {
+  const inp=document.getElementById('new-sj'),name=inp.value.trim();
+  if(!name)return;
+  if(subjects.find(s=>s.name.toLowerCase()===name.toLowerCase())){flash(inp,'var(--red)');return;}
+  subjects.push({fbKey:'',name:name.charAt(0).toUpperCase()+name.slice(1),total:0,attended:0});
+  writeAllSubjects();renderSubjects();inp.value='';flash(inp,'var(--green)');
+}
+
+function delSubject(i) {
+  if(!confirm(`Remove "${subjects[i].name}"?`))return;
+  const key=subjects[i].fbKey;
+  subjects.splice(i,1);
+  if(key)uRef('subjects/'+key).remove();
+  writeAllSubjects();renderSubjects();
+}
+
+function onSubjInput(i,field,el){
+  const k=`${i}_${field}`;
+  el.classList.remove('saved');el.classList.add('typing');
+  document.getElementById(`ubtn-${i}`)?.classList.add('show');
+  clearTimeout(dT[k]);
+  dT[k]=setTimeout(()=>commitUpdate(i,field,el),DEBOUNCE_MS);
+}
+
+function onSubjBlur(i,field,el){
+  const k=`${i}_${field}`;
+  if(dT[k]){clearTimeout(dT[k]);delete dT[k];commitUpdate(i,field,el);}
+}
+
+function commitUpdate(i,field,el){
+  subjects[i][field]=Math.max(0,parseInt(el?.value)||0);
+  if(subjects[i].attended>subjects[i].total)subjects[i].attended=subjects[i].total;
+  writeSubjectCounts(i);
+  if(el){el.classList.remove('typing');el.classList.add('saved');setTimeout(()=>el.classList.remove('saved'),1500);}
+  document.getElementById(`ubtn-${i}`)?.classList.remove('show');
+  refreshStats(i);renderOverall();
+}
+
+function manualUpdate(i){
+  const tEl=document.getElementById(`sj-t-${i}`),aEl=document.getElementById(`sj-a-${i}`);
+  ['total','attended'].forEach(f=>{clearTimeout(dT[`${i}_${f}`]);delete dT[`${i}_${f}`];});
+  subjects[i].total=Math.max(0,parseInt(tEl.value)||0);
+  subjects[i].attended=Math.max(0,parseInt(aEl.value)||0);
+  if(subjects[i].attended>subjects[i].total)subjects[i].attended=subjects[i].total;
+  writeSubjectCounts(i);
+  [tEl,aEl].forEach(el=>{el.classList.remove('typing');el.classList.add('saved');setTimeout(()=>el.classList.remove('saved'),1500);});
+  document.getElementById(`ubtn-${i}`)?.classList.remove('show');
+  refreshStats(i);renderOverall();
+}
+
+function refreshStats(i){
+  const s=subjects[i],pct=s.total>0?s.attended/s.total*100:0,pR=s.total>0?pct.toFixed(1):'—';
+  const col=pct>=75?'var(--green)':pct>=60?'var(--yellow)':'var(--red)';
+  const bgC=pct>=75?'rgba(34,197,94,.15)':pct>=60?'rgba(245,158,11,.15)':'rgba(239,68,68,.15)';
+  const nd=s.total>0&&pct<75?Math.max(0,Math.ceil((0.75*s.total-s.attended)/0.25)):0;
+  const bk=s.total>0&&pct>=75?Math.max(0,Math.floor((s.attended-0.75*s.total)/0.75)):0;
+  const badge=document.getElementById(`sj-b-${i}`);
+  if(badge){badge.textContent=s.total>0?pR+'%':'—';badge.style.color=col;badge.style.background=bgC;}
+  const bf=document.getElementById(`sj-bf-${i}`);
+  if(bf){bf.style.width=Math.min(pct,100)+'%';bf.style.background=col;}
+  const st=document.getElementById(`sj-st-${i}`);
+  if(st){
+    if(s.total>0){st.style.display='grid';st.innerHTML=`
+      <div class="sjs"><div class="sv" style="color:${col}">${pR}%</div><div class="sl">Attendance</div></div>
+      <div class="sjs"><div class="sv" style="color:var(--red)">${nd>0?'+'+nd:'✓'}</div><div class="sl">${nd>0?'Need More':'Safe'}</div></div>
+      <div class="sjs"><div class="sv" style="color:var(--green)">${bk>0?bk:'0'}</div><div class="sl">Can Bunk</div></div>`;}
+    else st.style.display='none';
+  }
+}
+
+function renderSubjects(){
+  const list=document.getElementById('sj-list'),noSj=document.getElementById('no-sj');
+  if(!list)return;
+  if(!subjects.length){list.innerHTML='';noSj.style.display='block';renderOverall();return;}
+  noSj.style.display='none';
+  list.innerHTML=subjects.map((s,i)=>{
+    const pct=s.total>0?s.attended/s.total*100:0,pR=s.total>0?pct.toFixed(1):'—';
+    const col=pct>=75?'var(--green)':pct>=60?'var(--yellow)':'var(--red)';
+    const bgC=pct>=75?'rgba(34,197,94,.15)':pct>=60?'rgba(245,158,11,.15)':'rgba(239,68,68,.15)';
+    const nd=s.total>0&&pct<75?Math.max(0,Math.ceil((0.75*s.total-s.attended)/0.25)):0;
+    const bk=s.total>0&&pct>=75?Math.max(0,Math.floor((s.attended-0.75*s.total)/0.75)):0;
+    return `<div class="sj">
+    <button class="del-btn" onclick="delSubject(${i})">✕ Remove</button>
+    <div class="sj-header"><div class="sj-name">${s.name}</div><div class="sj-badge" id="sj-b-${i}" style="background:${bgC};color:${col}">${s.total>0?pR+'%':'—'}</div></div>
+    <div class="sj-inputs">
+      <div><label>Total Classes</label><input type="number" id="sj-t-${i}" value="${s.total||''}" placeholder="0" min="0" oninput="onSubjInput(${i},'total',this)" onblur="onSubjBlur(${i},'total',this)"></div>
+      <div><label>Attended</label><input type="number" id="sj-a-${i}" value="${s.attended||''}" placeholder="0" min="0" oninput="onSubjInput(${i},'attended',this)" onblur="onSubjBlur(${i},'attended',this)"></div>
+    </div>
+    <button class="upd-btn" id="ubtn-${i}" onclick="manualUpdate(${i})">✓ Update Now</button>
+    <div class="sj-bar" style="${s.total>0?'':'display:none'}"><div class="sj-bar-fill" id="sj-bf-${i}" style="width:${s.total>0?Math.min(pct,100):0}%;background:${col}"></div></div>
+    <div class="sj-stats" id="sj-st-${i}" style="${s.total>0?'':'display:none'}">
+      ${s.total>0?`<div class="sjs"><div class="sv" style="color:${col}">${pR}%</div><div class="sl">Attendance</div></div>
+      <div class="sjs"><div class="sv" style="color:var(--red)">${nd>0?'+'+nd:'✓'}</div><div class="sl">${nd>0?'Need More':'Safe'}</div></div>
+      <div class="sjs"><div class="sv" style="color:var(--green)">${bk>0?bk:'0'}</div><div class="sl">Can Bunk</div></div>`:''}
+    </div></div>`;
+  }).join('');
+  renderOverall();
+}
+
+function renderOverall(){
+  const op=document.getElementById('ov-pct');if(!op)return;
+  const act=subjects.filter(s=>s.total>0);
+  if(!act.length){op.textContent='—';['ov-safe','ov-risk','ov-crit'].forEach(id=>document.getElementById(id).textContent='0');return;}
+  const tC=act.reduce((a,s)=>a+s.total,0),tA=act.reduce((a,s)=>a+s.attended,0);
+  const ov=(tA/tC*100).toFixed(1);
+  op.textContent=ov+'%';op.style.color=ov>=75?'var(--green)':ov>=60?'var(--yellow)':'var(--red)';
+  document.getElementById('ov-safe').textContent=act.filter(s=>s.attended/s.total*100>=75).length;
+  document.getElementById('ov-risk').textContent=act.filter(s=>{const p=s.attended/s.total*100;return p>=60&&p<75;}).length;
+  document.getElementById('ov-crit').textContent=act.filter(s=>s.attended/s.total*100<60).length;
+}
+
+/* ══════════════════════════════════════════
+   PLAN / PROMO / MODAL
+══════════════════════════════════════════ */
+function selPlan(k,a){planKey=k;planAmt=promoOk?0:a;lastQRAmt=-1;document.getElementById('p-mo').classList.toggle('sel',k==='monthly');document.getElementById('p-se').classList.toggle('sel',k==='semester');}
+function applyPromo(){
+  const code=document.getElementById('promo-inp').value.trim().toUpperCase();
+  document.getElementById('p-ok').style.display='none';document.getElementById('p-err').style.display='none';
+  if(code===PROMO_CODE){promoOk=true;planAmt=0;document.getElementById('p-ok').style.display='flex';document.getElementById('promo-inp').style.borderColor='var(--green)';document.getElementById('btn-pay').style.display='none';document.getElementById('btn-free').style.display='block';}
+  else{document.getElementById('p-err').style.display='flex';document.getElementById('promo-inp').style.borderColor='var(--red)';setTimeout(()=>{document.getElementById('p-err').style.display='none';document.getElementById('promo-inp').style.borderColor='';},2500);}
+}
+function freeActivate(){writePremium('promo','','');document.getElementById('s-msg').textContent='🎁 Premium FREE ho gaya! Cloud pe sync ho raha hai!';goStep(4);}
+function openModal(){resetModal();document.getElementById('modal').classList.add('show');goStep(1);}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+function bgClick(e){if(e.target===document.getElementById('modal'))closeModal();}
+function resetModal(){promoOk=false;planKey='semester';planAmt=99;lastQRAmt=-1;document.getElementById('promo-inp').value='';document.getElementById('promo-inp').style.borderColor='';document.getElementById('p-ok').style.display='none';document.getElementById('p-err').style.display='none';document.getElementById('btn-pay').style.display='block';document.getElementById('btn-free').style.display='none';document.getElementById('p-mo').classList.remove('sel');document.getElementById('p-se').classList.add('sel');}
+function goStep(n){
+  [1,2,3,4].forEach(i=>document.getElementById('ms'+i).classList.toggle('active',i===n));
+  document.getElementById('dots').style.display=n===4?'none':'flex';
+  ['d1','d2','d3'].forEach((id,i)=>{const d=document.getElementById(id);d.classList.remove('active','done');if(i+1<n)d.classList.add('done');else if(i+1===n)d.classList.add('active');});
+  if(n===2)buildQR();
+}
+function buildQR(){
+  const amt=planAmt;document.getElementById('qr-sub').textContent=`Scan QR to pay ₹${amt}`;document.getElementById('qr-amt').textContent=`₹${amt}`;
+  if(lastQRAmt===amt)return;document.getElementById('qrcode').innerHTML='';
+  new QRCode(document.getElementById('qrcode'),{text:`upi://pay?pa=${UPI}&pn=AttendIQ&am=${amt}&cu=INR&tn=AttendIQ+Premium`,width:200,height:200,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.H});
+  lastQRAmt=amt;
+}
+function copyUPI(){
+  const b=document.getElementById('copy-btn');
+  const done=()=>{b.textContent='Copied!';b.style.background='var(--green)';setTimeout(()=>{b.textContent='Copy';b.style.background='';},2000);};
+  navigator.clipboard?navigator.clipboard.writeText(UPI).then(done).catch(()=>{fbCopy();done();}):(fbCopy(),done());
+}
+function fbCopy(){const t=document.createElement('textarea');t.value=UPI;document.body.appendChild(t);t.select();document.execCommand('copy');t.remove();}
+function verifyPay(){
+  const inp=document.getElementById('utr-inp'),v=inp.value.trim();
+  if(v.length<6){inp.style.borderColor='var(--red)';inp.placeholder='⚠️ Valid UTR daalo';return;}
+  inp.style.borderColor='var(--green)';writePremium('paid',v,planKey);
+  document.getElementById('s-msg').textContent='Premium activated! Har device pe sync ho gaya 🎉';goStep(4);
+}
+function activatePremiumUI(doSwitch=true){
+  isPrem=true;
+  document.querySelectorAll('.blur-overlay').forEach(e=>e.style.display='none');
+  const bl=document.getElementById('bunk-lock');if(bl)bl.style.display='none';
+  document.getElementById('prem-locked').style.display='none';
+  document.getElementById('prem-active').style.display='block';
+  renderSubjects();calc();
+  if(doSwitch)switchTab('premium');
+}
+function flash(el,color){el.style.borderColor=color;setTimeout(()=>el.style.borderColor='',1500);}
+document.getElementById('new-sj').addEventListener('keydown',e=>{if(e.key==='Enter')addSubject();});
+</script>
+
+<!--
+╔══════════════════════════════════════════════════════════════╗
+║           🔥 FIREBASE SETUP GUIDE — STEP BY STEP            ║
+╠══════════════════════════════════════════════════════════════╣
+║                                                              ║
+║  STEP 1 — Firebase project banao                            ║
+║  → https://console.firebase.google.com                      ║
+║  → "Add project" → naam do → Create                         ║
+║                                                              ║
+║  STEP 2 — Realtime Database enable karo                     ║
+║  → Build → Realtime Database → Create Database              ║
+║  → Region: asia-south1 (India)                              ║
+║  → "Start in TEST MODE" select karo → Enable                ║
+║                                                              ║
+║  STEP 3 — Google Sign-In enable karo                        ║
+║  → Build → Authentication → Get started                     ║
+║  → Sign-in method → Google → Enable → Save                  ║
+║                                                              ║
+║  STEP 4 — Config copy karo (SABSE IMPORTANT)                ║
+║  → ⚙️ Project Settings → Your apps → </> Web               ║
+║  → App register karo → firebaseConfig object copy karo      ║
+║  → Is file mein upar firebaseConfig mein paste karo         ║
+║                                                              ║
+║  STEP 5 — Authorized domain add karo                        ║
+║  → Authentication → Settings → Authorized domains           ║
+║  → Apna Netlify URL add karo (localhost works by default)   ║
+║                                                              ║
+║  STEP 6 — Database rules secure karo (recommended)          ║
+║  → Realtime Database → Rules tab → paste karo:              ║
+║                                                              ║
+║  {                                                           ║
+║    "rules": {                                                ║
+║      "users": {                                              ║
+║        "$uid": {                                             ║
+║          ".read":  "$uid === auth.uid",                      ║
+║          ".write": "$uid === auth.uid"                       ║
+║        }                                                     ║
+║      }                                                       ║
+║    }                                                         ║
+║  }                                                           ║
+║                                                              ║
+║  → Publish karo                                              ║
+║                                                              ║
+║  DONE! Netlify pe drag-drop karo aur ready! 🚀              ║
+╚══════════════════════════════════════════════════════════════╝
+-->
+</body>
+</html>
